@@ -37,6 +37,12 @@
           "dark": {
             "backgroundColor": "#000000"
           }
+        },
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Vazifalarni yuborishda joylashuvingizni aniqlash uchun kerak.",
+          "locationAlwaysPermission": "Vazifalarni yuborishda joylashuvingizni aniqlash uchun kerak.",
+          "locationWhenInUsePermission": "Vazifalarni yuborishda joylashuvingizni aniqlash uchun kerak."
         }
       ]
     ],
