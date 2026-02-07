@@ -1,9 +1,11 @@
+import Screen from "@/components/Screen";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
+  Image,
   RefreshControl,
   StyleSheet,
   Text,
@@ -28,8 +30,6 @@ interface Task {
   is_priority: boolean;
 }
 
-type FilterType = "all" | "active" | "overdue";
-
 const daysLeft = (deadline: string): number => {
   const now = new Date();
   const dl = new Date(deadline);
@@ -49,20 +49,16 @@ export default function VazifalarScreen() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [filter, setFilter] = useState<FilterType>("all");
   const [error, setError] = useState<string | null>(null);
 
   const fetchTasks = async () => {
     setError(null);
-
     const response = await tasksApi.getAll();
-
     if (response.success) {
       setTasks(response.data || []);
     } else {
       setError(response.message || "Xatolik yuz berdi");
     }
-
     setLoading(false);
     setRefreshing(false);
   };
@@ -76,43 +72,11 @@ export default function VazifalarScreen() {
     fetchTasks();
   };
 
-  const filteredTasks = tasks.filter((task) => {
-    switch (filter) {
-      case "active":
-        return !task.is_overdue;
-      case "overdue":
-        return task.is_overdue;
-      default:
-        return true;
-    }
-  });
-
   const stats = {
-    all: tasks.length,
     active: tasks.filter((t) => !t.is_overdue).length,
     overdue: tasks.filter((t) => t.is_overdue).length,
+    priority: tasks.filter((t) => t.is_priority).length,
   };
-
-  const filters: {
-    key: FilterType;
-    label: string;
-    count: number;
-    icon: keyof typeof Ionicons.glyphMap;
-  }[] = [
-    { key: "all", label: "Barchasi", count: stats.all, icon: "list-outline" },
-    {
-      key: "active",
-      label: "Faol",
-      count: stats.active,
-      icon: "pulse-outline",
-    },
-    {
-      key: "overdue",
-      label: "Kechikkan",
-      count: stats.overdue,
-      icon: "alert-circle-outline",
-    },
-  ];
 
   const getCardStyle = (task: Task) => {
     if (task.is_overdue) return { border: "#ef4444", bg: "#ef444408" };
@@ -237,38 +201,41 @@ export default function VazifalarScreen() {
 
   if (loading) {
     return (
-      <View style={[styles.container, styles.center]}>
+      <Screen style={styles.center}>
         <ActivityIndicator size="large" color="#0ea5e9" />
         <Text style={styles.loadingText}>Yuklanmoqda...</Text>
-      </View>
+      </Screen>
     );
   }
 
   if (error) {
     return (
-      <View style={[styles.container, styles.center]}>
-        <Ionicons name="cloud-offline-outline" size={48} color="#ef4444" />
+      <Screen style={styles.center}>
+        <Image
+          source={require("../../assets/images/not_found.png")}
+          style={styles.errorImage}
+          resizeMode="contain"
+        />
         <Text style={styles.errorText}>{error}</Text>
         <TouchableOpacity style={styles.retryBtn} onPress={fetchTasks}>
           <Ionicons name="refresh-outline" size={18} color="#fff" />
           <Text style={styles.retryText}>Qayta urinish</Text>
         </TouchableOpacity>
-      </View>
+      </Screen>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <View style={styles.headerRow}>
+    <Screen>
+      {/* Header */}
+      <View style={styles.header}>
         <View>
           <Text style={styles.welcome}>Assalomu alaykum</Text>
           <Text style={styles.subtitle}>Hokim topshiriqlari</Text>
         </View>
-        <View style={styles.headerIcon}>
-          <Ionicons name="notifications-outline" size={22} color="#8a9bb5" />
-        </View>
       </View>
 
+      {/* Stats */}
       <View style={styles.statsRow}>
         <View style={[styles.statBox, { borderColor: "#0ea5e930" }]}>
           <Ionicons name="pulse-outline" size={18} color="#0ea5e9" />
@@ -287,49 +254,18 @@ export default function VazifalarScreen() {
         <View style={[styles.statBox, { borderColor: "#f59e0b30" }]}>
           <Ionicons name="flag-outline" size={18} color="#f59e0b" />
           <Text style={[styles.statNum, { color: "#f59e0b" }]}>
-            {tasks.filter((t) => t.is_priority).length}
+            {stats.priority}
           </Text>
           <Text style={styles.statLabel}>Muhim</Text>
         </View>
       </View>
 
+      {/* Tasks List */}
       <FlatList
-        horizontal
-        data={filters}
-        showsHorizontalScrollIndicator={false}
-        keyExtractor={(item) => item.key}
-        style={styles.filterList}
-        renderItem={({ item }) => (
-          <TouchableOpacity
-            style={[
-              styles.filterBtn,
-              filter === item.key && styles.filterBtnActive,
-            ]}
-            onPress={() => setFilter(item.key)}
-          >
-            <Ionicons
-              name={item.icon}
-              size={14}
-              color={filter === item.key ? "#0ea5e9" : "#5a7fa5"}
-              style={{ marginRight: 5 }}
-            />
-            <Text
-              style={[
-                styles.filterText,
-                filter === item.key && styles.filterTextActive,
-              ]}
-            >
-              {item.label} ({item.count})
-            </Text>
-          </TouchableOpacity>
-        )}
-      />
-
-      <FlatList
-        data={filteredTasks}
+        data={tasks}
         renderItem={renderTask}
         keyExtractor={(item) => item.id.toString()}
-        contentContainerStyle={{ paddingBottom: 20 }}
+        contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
@@ -340,35 +276,25 @@ export default function VazifalarScreen() {
         }
         ListEmptyComponent={
           <View style={styles.emptyBox}>
-            <Ionicons
-              name="checkmark-done-circle-outline"
-              size={48}
-              color="#10b981"
+            <Image
+              source={require("../../assets/images/empty.png")}
+              style={styles.emptyImage}
+              resizeMode="contain"
             />
             <Text style={styles.emptyText}>Barcha vazifalar bajarilgan</Text>
           </View>
         }
       />
-    </View>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#0f1b2d",
-    paddingHorizontal: 20,
-    paddingTop: 16,
-  },
   center: { justifyContent: "center", alignItems: "center" },
   loadingText: { color: "#5a7fa5", marginTop: 12, fontSize: 14 },
 
-  errorText: {
-    color: "#ef4444",
-    marginTop: 12,
-    fontSize: 14,
-    textAlign: "center",
-  },
+  errorImage: { width: 150, height: 150, marginBottom: 20 },
+  errorText: { color: "#ef4444", fontSize: 14, textAlign: "center" },
   retryBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -381,28 +307,19 @@ const styles = StyleSheet.create({
   },
   retryText: { color: "#fff", fontSize: 14, fontWeight: "600" },
 
-  headerRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+  header: {
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 8,
   },
   welcome: { fontSize: 22, fontWeight: "700", color: "#ffffff" },
   subtitle: { fontSize: 13, color: "#5a7fa5", marginTop: 2 },
-  headerIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: "#1a2a40",
-    borderWidth: 1,
-    borderColor: "#2a3a52",
-    justifyContent: "center",
-    alignItems: "center",
-  },
 
   statsRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginTop: 20,
+    paddingHorizontal: 20,
+    marginTop: 12,
     gap: 10,
   },
   statBox: {
@@ -417,28 +334,11 @@ const styles = StyleSheet.create({
   statNum: { fontSize: 22, fontWeight: "bold" },
   statLabel: { color: "#5a7fa5", fontSize: 11 },
 
-  filterList: {
-    marginTop: 20,
-    marginBottom: 16,
-    minHeight: 44,
-    maxHeight: 44,
-    flexGrow: 0,
+  listContent: {
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 20,
   },
-  filterBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 22,
-    backgroundColor: "#1a2a40",
-    marginRight: 8,
-    borderWidth: 1,
-    borderColor: "#2a3a52",
-    height: 38,
-  },
-  filterBtnActive: { backgroundColor: "#0ea5e910", borderColor: "#0ea5e9" },
-  filterText: { color: "#5a7fa5", fontSize: 13, fontWeight: "500" },
-  filterTextActive: { color: "#0ea5e9" },
 
   card: {
     borderRadius: 14,
@@ -511,6 +411,7 @@ const styles = StyleSheet.create({
 
   cardArrow: { position: "absolute", right: 16, top: "50%", marginTop: -9 },
 
-  emptyBox: { alignItems: "center", marginTop: 60, gap: 12 },
+  emptyBox: { alignItems: "center", marginTop: 40 },
+  emptyImage: { width: 180, height: 180, marginBottom: 16 },
   emptyText: { color: "#5a7fa5", fontSize: 15 },
 });

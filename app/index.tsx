@@ -1,182 +1,97 @@
-import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { useRef, useState } from "react";
-import {
-  Dimensions,
-  FlatList,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-  ViewToken,
-} from "react-native";
+import { useEffect, useState } from "react";
+import { ActivityIndicator, Image, StyleSheet, Text, View } from "react-native";
+import { storage } from "./storage";
 
-const { width } = Dimensions.get("window");
+const ONBOARDING_KEY = "onboarding_completed";
 
-const slides = [
-  {
-    id: "1",
-    icon: "shield-checkmark-outline" as const,
-    title: "Hokim Yordamchisi",
-    description:
-      "MFY faoliyatini boshqarish, hokim topshiriqlarini nazorat qilish va hisobot berish uchun yagona platforma.",
-  },
-  {
-    id: "2",
-    icon: "clipboard-outline" as const,
-    title: "Vazifalarni Boshqaring",
-    description:
-      "Hokim bergan vazifalarni qabul qiling, bajarish muddatini kuzating va natijalarni yuklang. Hech qanday topshiriq e'tibordan chetda qolmaydi.",
-  },
-  {
-    id: "3",
-    icon: "stats-chart-outline" as const,
-    title: "Hisobot va Natija",
-    description:
-      "Bajarilgan ishlar bo'yicha hisobot yuboring, mahalla aholisiga xizmat ko'rsatish sifatini oshiring.",
-  },
-];
+export default function SplashScreen() {
+  const [status, setStatus] = useState("Tekshirilmoqda...");
 
-export default function OnboardingScreen() {
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const flatListRef = useRef<FlatList>(null);
+  useEffect(() => {
+    checkAuth();
+  }, []);
 
-  const onViewableItemsChanged = useRef(
-    ({ viewableItems }: { viewableItems: ViewToken[] }) => {
-      if (viewableItems.length > 0 && viewableItems[0].index !== null) {
-        setCurrentIndex(viewableItems[0].index);
+  const checkAuth = async () => {
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
+      const token = await storage.getToken();
+
+      if (token) {
+        setStatus("Kirish...");
+        router.replace("/(tabs)");
+        return;
       }
-    },
-  ).current;
 
-  const handleNext = () => {
-    if (currentIndex < slides.length - 1) {
-      flatListRef.current?.scrollToIndex({ index: currentIndex + 1 });
-    } else {
-      router.push("/login");
+      const onboardingCompleted = await storage.get(ONBOARDING_KEY);
+
+      if (onboardingCompleted) {
+        router.replace("/login");
+      } else {
+        router.replace("/onboarding");
+      }
+    } catch (error) {
+      console.error("Auth check error:", error);
+      router.replace("/login");
     }
   };
 
-  const handleSkip = () => {
-    router.push("/login");
-  };
-
-  const renderSlide = ({ item }: { item: (typeof slides)[0] }) => (
-    <View style={styles.slide}>
-      <View style={styles.iconCircle}>
-        <Ionicons name={item.icon} size={48} color="#0ea5e9" />
-      </View>
-      <Text style={styles.title}>{item.title}</Text>
-      <Text style={styles.description}>{item.description}</Text>
-    </View>
-  );
-
   return (
     <View style={styles.container}>
-      <TouchableOpacity style={styles.skipBtn} onPress={handleSkip}>
-        <Text style={styles.skipText}>
-          {currentIndex < slides.length - 1 ? "O'tkazish" : ""}
-        </Text>
-      </TouchableOpacity>
-
-      <FlatList
-        ref={flatListRef}
-        data={slides}
-        renderItem={renderSlide}
-        horizontal
-        pagingEnabled
-        showsHorizontalScrollIndicator={false}
-        keyExtractor={(item) => item.id}
-        onViewableItemsChanged={onViewableItemsChanged}
-        viewabilityConfig={{ viewAreaCoveragePercentThreshold: 50 }}
-      />
-
-      <View style={styles.indicatorContainer}>
-        {slides.map((_, index) => (
-          <View
-            key={index}
-            style={[styles.dot, currentIndex === index && styles.activeDot]}
-          />
-        ))}
+      <View style={styles.logoBox}>
+        <Image
+          source={require("../assets/images/app_icon.png")}
+          style={styles.logo}
+          resizeMode="contain"
+        />
       </View>
-
-      <View style={styles.bottom}>
-        <TouchableOpacity style={styles.button} onPress={handleNext}>
-          <Text style={styles.buttonText}>
-            {currentIndex < slides.length - 1 ? "Keyingisi" : "Boshlash"}
-          </Text>
-          <Ionicons
-            name={
-              currentIndex < slides.length - 1
-                ? "arrow-forward"
-                : "checkmark-circle"
-            }
-            size={20}
-            color="#fff"
-            style={{ marginLeft: 8 }}
-          />
-        </TouchableOpacity>
+      <Text style={styles.title}>MFY Hokim Yordamchisi</Text>
+      <View style={styles.loadingBox}>
+        <ActivityIndicator size="small" color="#0ea5e9" />
+        <Text style={styles.statusText}>{status}</Text>
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#0f1b2d" },
-  skipBtn: { position: "absolute", top: 55, right: 24, zIndex: 10 },
-  skipText: { color: "#5a7fa5", fontSize: 15 },
-  slide: {
-    width: width,
+  container: {
+    flex: 1,
+    backgroundColor: "#0f1b2d",
     justifyContent: "center",
     alignItems: "center",
-    paddingHorizontal: 40,
-    paddingTop: 80,
+    padding: 20,
   },
-  iconCircle: {
-    width: 110,
-    height: 110,
-    borderRadius: 55,
-    backgroundColor: "#0ea5e915",
-    borderWidth: 1.5,
+  logoBox: {
+    width: 100,
+    height: 100,
+    borderRadius: 24,
+    backgroundColor: "#0ea5e910",
+    borderWidth: 1,
     borderColor: "#0ea5e930",
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 36,
+    marginBottom: 20,
+    overflow: "hidden",
+  },
+  logo: {
+    width: 80,
+    height: 80,
   },
   title: {
-    fontSize: 28,
-    fontWeight: "bold",
+    fontSize: 22,
+    fontWeight: "700",
     color: "#ffffff",
-    textAlign: "center",
-    marginBottom: 16,
+    marginBottom: 40,
   },
-  description: {
-    fontSize: 16,
-    color: "#8a9bb5",
-    textAlign: "center",
-    lineHeight: 24,
-  },
-  indicatorContainer: {
+  loadingBox: {
     flexDirection: "row",
-    justifyContent: "center",
-    marginBottom: 30,
-  },
-  dot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: "#2a3a52",
-    marginHorizontal: 5,
-  },
-  activeDot: { backgroundColor: "#0ea5e9", width: 28 },
-  bottom: { paddingHorizontal: 30, paddingBottom: 50 },
-  button: {
-    backgroundColor: "#0ea5e9",
-    paddingVertical: 16,
-    borderRadius: 14,
     alignItems: "center",
-    flexDirection: "row",
-    justifyContent: "center",
+    gap: 10,
   },
-  buttonText: { color: "#ffffff", fontSize: 17, fontWeight: "bold" },
+  statusText: {
+    color: "#5a7fa5",
+    fontSize: 14,
+  },
 });

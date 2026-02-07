@@ -1,5 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
+import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
@@ -7,6 +8,7 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Image,
   Linking,
   Modal,
   StyleSheet,
@@ -52,7 +54,7 @@ interface SelectedFile {
   name: string;
   uri: string;
   size?: number;
-  type?: string;
+  type: string;
 }
 
 interface LocationCoords {
@@ -123,6 +125,8 @@ export default function TaskDetailScreen() {
   const [locationLoading, setLocationLoading] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
 
+  const isAttendanceTask = task?.task_category_id === 1;
+
   const fetchTask = async () => {
     setError(null);
     const response = await tasksApi.getById(Number(id));
@@ -142,14 +146,13 @@ export default function TaskDetailScreen() {
     }
   }, [id]);
 
-  const getLocation = async () => {
+  const getLocation = async (): Promise<LocationCoords | null> => {
     setLocationLoading(true);
     setLocationError(null);
 
     try {
       const { status: existingStatus } =
         await Location.getForegroundPermissionsAsync();
-
       let granted = existingStatus === "granted";
 
       if (!granted) {
@@ -168,7 +171,7 @@ export default function TaskDetailScreen() {
           ],
         );
         setLocationLoading(false);
-        return;
+        return null;
       }
 
       const isEnabled = await Location.hasServicesEnabledAsync();
@@ -179,24 +182,64 @@ export default function TaskDetailScreen() {
           { text: "OK" },
         ]);
         setLocationLoading(false);
-        return;
+        return null;
       }
 
       const currentLocation = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.High,
       });
 
-      setLocation({
+      const coords = {
         latitude: currentLocation.coords.latitude,
         longitude: currentLocation.coords.longitude,
         accuracy: currentLocation.coords.accuracy,
-      });
+      };
 
-      setUploadStep("files");
+      setLocation(coords);
+      setLocationLoading(false);
+      return coords;
     } catch (err) {
       setLocationError("Joylashuvni aniqlab bo'lmadi");
-    } finally {
       setLocationLoading(false);
+      return null;
+    }
+  };
+
+  const handlePickImage = async () => {
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+
+      if (status !== "granted") {
+        Alert.alert("Ruxsat kerak", "Kamera ruxsati berilmagan.", [
+          { text: "Bekor qilish", style: "cancel" },
+          { text: "Sozlamalar", onPress: () => Linking.openSettings() },
+        ]);
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ["images"],
+        quality: 0.6,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        const asset = result.assets[0];
+
+        console.log("📸 Original URI:", asset.uri);
+
+        const fileName = `photo_${Date.now()}.jpg`;
+
+        setSelectedFiles([
+          {
+            name: fileName,
+            uri: asset.uri,
+            size: asset.fileSize,
+            type: "image/jpeg",
+          },
+        ]);
+      }
+    } catch (err) {
+      console.error("Camera error:", err);
     }
   };
 
@@ -218,7 +261,7 @@ export default function TaskDetailScreen() {
           name: asset.name,
           uri: asset.uri,
           size: asset.size ?? undefined,
-          type: asset.mimeType,
+          type: asset.mimeType || "application/octet-stream",
         }));
         setSelectedFiles((prev) => [...prev, ...files]);
       }
@@ -232,30 +275,45 @@ export default function TaskDetailScreen() {
   };
 
   const handleUpload = async () => {
-    if (!task || !location) return;
+    if (!task || !location || selectedFiles.length === 0) return;
 
     setUploadStep("uploading");
     setUploadError(null);
 
-    const response = await tasksApi.uploadFiles(
-      task.id,
-      selectedFiles.map((f) => ({ uri: f.uri, name: f.name, type: f.type })),
-      undefined,
-      { latitude: location.latitude, longitude: location.longitude },
-    );
+    console.log("📤 Upload boshlanmoqda...");
+    console.log("📁 Files:", selectedFiles);
 
-    if (response.success) {
-      setUploadStep("done");
-      setTimeout(() => {
-        setModalVisible(false);
-        setSelectedFiles([]);
-        setLocation(null);
-        setUploadStep("location");
-        fetchTask();
-      }, 1500);
-    } else {
+    try {
+      const response = await tasksApi.uploadFiles(
+        task.id,
+        selectedFiles.map((f) => ({
+          uri: f.uri,
+          name: f.name,
+          type: f.type,
+        })),
+        undefined,
+        { latitude: location.latitude, longitude: location.longitude },
+      );
+
+      console.log("📥 Response:", response);
+
+      if (response.success) {
+        setUploadStep("done");
+        setTimeout(() => {
+          setModalVisible(false);
+          setSelectedFiles([]);
+          setLocation(null);
+          setUploadStep("location");
+          fetchTask();
+        }, 1500);
+      } else {
+        setUploadStep("error");
+        setUploadError(response.message || "Yuklashda xatolik yuz berdi");
+      }
+    } catch (err) {
+      console.error("Upload error:", err);
       setUploadStep("error");
-      setUploadError(response.message || "Yuklashda xatolik yuz berdi");
+      setUploadError("Serverga ulanib bo'lmadi");
     }
   };
 
@@ -266,7 +324,9 @@ export default function TaskDetailScreen() {
     setLocationError(null);
     setUploadError(null);
     setModalVisible(true);
-    getLocation();
+    getLocation().then((coords) => {
+      if (coords) setUploadStep("files");
+    });
   };
 
   const renderMyTask = ({ item }: { item: MyTask }) => {
@@ -333,7 +393,12 @@ export default function TaskDetailScreen() {
                 <Ionicons name="location-outline" size={40} color="#ef4444" />
               </View>
               <Text style={styles.errorText}>{locationError}</Text>
-              <TouchableOpacity style={styles.retryBtn} onPress={getLocation}>
+              <TouchableOpacity
+                style={styles.retryBtn}
+                onPress={() =>
+                  getLocation().then((c) => c && setUploadStep("files"))
+                }
+              >
                 <Ionicons name="refresh-outline" size={18} color="#fff" />
                 <Text style={styles.retryBtnText}>Qayta urinish</Text>
               </TouchableOpacity>
@@ -358,7 +423,11 @@ export default function TaskDetailScreen() {
           <View style={styles.doneCircle}>
             <Ionicons name="checkmark" size={40} color="#10b981" />
           </View>
-          <Text style={styles.doneText}>Muvaffaqiyatli yuklandi</Text>
+          <Text style={styles.doneText}>
+            {isAttendanceTask
+              ? "Keldingiz qayd etildi"
+              : "Muvaffaqiyatli yuklandi"}
+          </Text>
         </View>
       );
     }
@@ -380,6 +449,72 @@ export default function TaskDetailScreen() {
       );
     }
 
+    if (isAttendanceTask) {
+      return (
+        <View style={styles.modalBody}>
+          <Text style={styles.modalTitle}>Ishga keldim</Text>
+
+          {location && (
+            <View style={styles.locationInfoBox}>
+              <Ionicons name="location" size={16} color="#10b981" />
+              <Text style={styles.locationInfoText}>Joylashuv aniqlandi</Text>
+              {location.accuracy && (
+                <Text style={styles.locationAccuracy}>
+                  ±{Math.round(location.accuracy)}m
+                </Text>
+              )}
+            </View>
+          )}
+
+          {selectedFiles.length === 0 ? (
+            <TouchableOpacity
+              style={styles.cameraBtn}
+              onPress={handlePickImage}
+            >
+              <View style={styles.cameraIconBox}>
+                <Ionicons name="camera" size={40} color="#0ea5e9" />
+              </View>
+              <Text style={styles.cameraBtnText}>Rasm olish</Text>
+              <Text style={styles.cameraBtnHint}>
+                Kamerani ochish uchun bosing
+              </Text>
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.selectedPhotoBox}>
+              <View style={styles.photoPreview}>
+                <Ionicons name="image" size={32} color="#10b981" />
+              </View>
+              <View style={styles.photoInfo}>
+                <Text style={styles.photoName} numberOfLines={1}>
+                  {selectedFiles[0].name}
+                </Text>
+                {selectedFiles[0].size && (
+                  <Text style={styles.photoSize}>
+                    {formatFileSize(selectedFiles[0].size)}
+                  </Text>
+                )}
+              </View>
+              <TouchableOpacity onPress={() => setSelectedFiles([])}>
+                <Ionicons name="close-circle" size={24} color="#ef4444" />
+              </TouchableOpacity>
+            </View>
+          )}
+
+          <TouchableOpacity
+            style={[
+              styles.uploadBtn,
+              selectedFiles.length === 0 && styles.uploadBtnDisabled,
+            ]}
+            onPress={handleUpload}
+            disabled={selectedFiles.length === 0}
+          >
+            <Ionicons name="checkmark-circle-outline" size={20} color="#fff" />
+            <Text style={styles.uploadBtnText}>Tasdiqlash</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
     return (
       <View style={styles.modalBody}>
         <Text style={styles.modalTitle}>Fayl yuklash</Text>
@@ -392,10 +527,7 @@ export default function TaskDetailScreen() {
         {location && (
           <View style={styles.locationInfoBox}>
             <Ionicons name="location" size={16} color="#10b981" />
-            <Text style={styles.locationInfoText}>
-              Joylashuv: {location.latitude.toFixed(6)},{" "}
-              {location.longitude.toFixed(6)}
-            </Text>
+            <Text style={styles.locationInfoText}>Joylashuv aniqlandi</Text>
             {location.accuracy && (
               <Text style={styles.locationAccuracy}>
                 ±{Math.round(location.accuracy)}m
@@ -427,11 +559,11 @@ export default function TaskDetailScreen() {
                     <Text style={styles.fileItemName} numberOfLines={1}>
                       {file.name}
                     </Text>
-                    {file.size ? (
+                    {file.size && (
                       <Text style={styles.fileItemSize}>
                         {formatFileSize(file.size)}
                       </Text>
-                    ) : null}
+                    )}
                   </View>
                 </View>
                 <TouchableOpacity onPress={() => handleRemoveFile(index)}>
@@ -469,7 +601,11 @@ export default function TaskDetailScreen() {
   if (error || !task) {
     return (
       <View style={[styles.container, styles.center]}>
-        <Ionicons name="alert-circle-outline" size={48} color="#ef4444" />
+        <Image
+          source={require("../../assets/images/not_found.png")}
+          style={styles.errorImage}
+          resizeMode="contain"
+        />
         <Text style={styles.errorPageText}>{error || "Vazifa topilmadi"}</Text>
         <TouchableOpacity
           style={styles.backBtnLarge}
@@ -568,19 +704,34 @@ export default function TaskDetailScreen() {
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
           <View style={styles.emptyBox}>
-            <Ionicons name="file-tray-outline" size={48} color="#2a3a52" />
+            <Image
+              source={require("../../assets/images/empty.png")}
+              style={styles.emptyImage}
+              resizeMode="contain"
+            />
             <Text style={styles.emptyText}>Hali hech narsa yuborilmagan</Text>
           </View>
         }
       />
 
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={openUploadModal}
-        activeOpacity={0.8}
-      >
-        <Ionicons name="add" size={28} color="#ffffff" />
-      </TouchableOpacity>
+      {isAttendanceTask ? (
+        <TouchableOpacity
+          style={styles.attendanceBtn}
+          onPress={openUploadModal}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="finger-print-outline" size={24} color="#ffffff" />
+          <Text style={styles.attendanceBtnText}>Keldim</Text>
+        </TouchableOpacity>
+      ) : (
+        <TouchableOpacity
+          style={styles.fab}
+          onPress={openUploadModal}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="add" size={28} color="#ffffff" />
+        </TouchableOpacity>
+      )}
 
       <Modal
         visible={modalVisible}
@@ -611,13 +762,8 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#0f1b2d", paddingHorizontal: 20 },
   center: { justifyContent: "center", alignItems: "center" },
   loadingText: { color: "#5a7fa5", marginTop: 12, fontSize: 14 },
-
-  errorPageText: {
-    color: "#ef4444",
-    marginTop: 12,
-    fontSize: 14,
-    textAlign: "center",
-  },
+  errorImage: { width: 150, height: 150, marginBottom: 20 },
+  errorPageText: { color: "#ef4444", fontSize: 14, textAlign: "center" },
   backBtnLarge: {
     marginTop: 20,
     backgroundColor: "#1a2a40",
@@ -628,7 +774,6 @@ const styles = StyleSheet.create({
     borderColor: "#2a3a52",
   },
   backBtnText: { color: "#ffffff", fontSize: 14, fontWeight: "600" },
-
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -653,7 +798,6 @@ const styles = StyleSheet.create({
     flex: 1,
     textAlign: "center",
   },
-
   infoRow: { flexDirection: "row", gap: 10, marginBottom: 16 },
   infoBox: {
     flex: 1,
@@ -666,7 +810,6 @@ const styles = StyleSheet.create({
   },
   infoLabel: { color: "#5a7fa5", fontSize: 11, marginBottom: 4 },
   infoValue: { color: "#ffffff", fontSize: 22, fontWeight: "bold" },
-
   deadlineBox: {
     flexDirection: "row",
     alignItems: "center",
@@ -691,7 +834,6 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   overdueTagText: { color: "#ef4444", fontSize: 11, fontWeight: "600" },
-
   progressSection: { marginBottom: 20 },
   progressHeader: {
     flexDirection: "row",
@@ -707,10 +849,8 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   progressFill: { height: "100%", borderRadius: 3 },
-
   listHeader: { marginBottom: 12 },
   listTitle: { color: "#8a9bb5", fontSize: 14, fontWeight: "600" },
-
   myTaskCard: {
     flexDirection: "row",
     alignItems: "center",
@@ -758,10 +898,9 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   myTaskBadgeText: { fontSize: 11, fontWeight: "600" },
-
-  emptyBox: { alignItems: "center", marginTop: 60, gap: 12 },
+  emptyBox: { alignItems: "center", marginTop: 40 },
+  emptyImage: { width: 150, height: 150, marginBottom: 16 },
   emptyText: { color: "#5a7fa5", fontSize: 15 },
-
   fab: {
     position: "absolute",
     bottom: 24,
@@ -778,7 +917,25 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
   },
-
+  attendanceBtn: {
+    position: "absolute",
+    bottom: 24,
+    left: 20,
+    right: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    backgroundColor: "#10b981",
+    paddingVertical: 18,
+    borderRadius: 16,
+    elevation: 8,
+    shadowColor: "#10b981",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+  },
+  attendanceBtnText: { color: "#ffffff", fontSize: 18, fontWeight: "bold" },
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.6)",
@@ -824,7 +981,6 @@ const styles = StyleSheet.create({
     color: "#ffffff",
     marginBottom: 16,
   },
-
   selectedCatBox: {
     flexDirection: "row",
     alignItems: "center",
@@ -839,7 +995,6 @@ const styles = StyleSheet.create({
     borderColor: "#0ea5e930",
   },
   selectedCatText: { color: "#0ea5e9", fontSize: 13, fontWeight: "600" },
-
   locationInfoBox: {
     flexDirection: "row",
     alignItems: "center",
@@ -854,7 +1009,6 @@ const styles = StyleSheet.create({
   },
   locationInfoText: { color: "#10b981", fontSize: 12, flex: 1 },
   locationAccuracy: { color: "#5a7fa5", fontSize: 11 },
-
   locationCircle: {
     width: 100,
     height: 100,
@@ -872,7 +1026,47 @@ const styles = StyleSheet.create({
     marginTop: 20,
   },
   locationHint: { color: "#5a7fa5", fontSize: 13, marginTop: 6 },
-
+  cameraBtn: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 40,
+    borderRadius: 16,
+    backgroundColor: "#1a2a40",
+    borderWidth: 2,
+    borderColor: "#0ea5e930",
+    gap: 10,
+  },
+  cameraIconBox: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: "#0ea5e910",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  cameraBtnText: { color: "#0ea5e9", fontSize: 18, fontWeight: "700" },
+  cameraBtnHint: { color: "#5a7fa5", fontSize: 13 },
+  selectedPhotoBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    backgroundColor: "#1a2a40",
+    padding: 16,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#10b98140",
+  },
+  photoPreview: {
+    width: 56,
+    height: 56,
+    borderRadius: 12,
+    backgroundColor: "#10b98118",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  photoInfo: { flex: 1 },
+  photoName: { color: "#ffffff", fontSize: 14, fontWeight: "500" },
+  photoSize: { color: "#5a7fa5", fontSize: 12, marginTop: 2 },
   pickFileBtn: {
     alignItems: "center",
     justifyContent: "center",
@@ -886,7 +1080,6 @@ const styles = StyleSheet.create({
   },
   pickFileText: { color: "#0ea5e9", fontSize: 15, fontWeight: "600" },
   pickFileHint: { color: "#5a7fa5", fontSize: 12 },
-
   fileList: { marginTop: 20 },
   fileListTitle: {
     color: "#8a9bb5",
@@ -913,7 +1106,6 @@ const styles = StyleSheet.create({
   },
   fileItemName: { color: "#ffffff", fontSize: 14 },
   fileItemSize: { color: "#5a7fa5", fontSize: 11, marginTop: 2 },
-
   uploadBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -926,14 +1118,12 @@ const styles = StyleSheet.create({
   },
   uploadBtnDisabled: { opacity: 0.4 },
   uploadBtnText: { color: "#ffffff", fontSize: 16, fontWeight: "bold" },
-
   uploadingText: {
     color: "#ffffff",
     fontSize: 18,
     fontWeight: "600",
     marginTop: 20,
   },
-
   doneCircle: {
     width: 80,
     height: 80,
@@ -950,7 +1140,6 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     marginTop: 16,
   },
-
   errorCircle: {
     width: 80,
     height: 80,

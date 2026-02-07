@@ -1,28 +1,45 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function TabLayout() {
+  const insets = useSafeAreaInsets();
+
   return (
     <Tabs
       screenOptions={{
+        headerShown: false,
         tabBarStyle: {
-          backgroundColor: "#1a2a40",
-          borderTopColor: "#2a3a52",
-          height: 60,
-          paddingBottom: 8,
+          backgroundColor: "#0f1b2d",
+          borderTopColor: "#1a2a40",
+          borderTopWidth: 1,
+          height: 60 + insets.bottom,
+          paddingBottom: insets.bottom + 8,
+          paddingTop: 8,
         },
         tabBarActiveTintColor: "#0ea5e9",
         tabBarInactiveTintColor: "#5a7fa5",
-        headerStyle: { backgroundColor: "#0f1b2d" },
-        headerTintColor: "#ffffff",
+        tabBarLabelStyle: {
+          fontSize: 11,
+          fontWeight: "500",
+        },
       }}
     >
       <Tabs.Screen
         name="index"
         options={{
           title: "Vazifalar",
-          tabBarIcon: ({ color }) => (
-            <Ionicons name="clipboard-outline" size={24} color={color} />
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="clipboard-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="categories"
+        options={{
+          title: "Bo'limlar",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="folder-outline" size={size} color={color} />
           ),
         }}
       />
@@ -30,8 +47,8 @@ export default function TabLayout() {
         name="profile"
         options={{
           title: "Profil",
-          tabBarIcon: ({ color }) => (
-            <Ionicons name="person-outline" size={24} color={color} />
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="person-outline" size={size} color={color} />
           ),
         }}
       />

@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useRef, useState } from "react";
 import {
+  Alert,
   Animated,
   KeyboardAvoidingView,
   Platform,
@@ -13,6 +14,7 @@ import {
 } from "react-native";
 import { authApi } from "./api";
 import { storage } from "./storage";
+import { getFcmToken } from "./utils/notifications";
 
 export default function LoginScreen() {
   const [email, setEmail] = useState("");
@@ -72,6 +74,15 @@ export default function LoginScreen() {
   };
 
   const handleLogin = async () => {
+    const fcmToken = await getFcmToken();
+
+    if (!fcmToken) {
+      Alert.alert(
+        "Xatolik",
+        "Push notification ruxsati kerak. Sozlamalardan yoqing.",
+      );
+      return;
+    }
     if (!email && !password) {
       showError("Email va parolni kiriting!");
       return;
@@ -87,7 +98,7 @@ export default function LoginScreen() {
 
     setLoading(true);
 
-    const response = await authApi.login(email, password);
+    const response = await authApi.login(email, password, fcmToken);
 
     if (!response.success) {
       if (response.errors) {

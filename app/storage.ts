@@ -5,6 +5,7 @@ const USER_KEY = "auth_user";
 const WORKER_KEY = "auth_worker";
 
 export const storage = {
+  // Token
   async setToken(token: string) {
     await AsyncStorage.setItem(TOKEN_KEY, token);
   },
@@ -13,6 +14,7 @@ export const storage = {
     return AsyncStorage.getItem(TOKEN_KEY);
   },
 
+  // User
   async setUser(user: any) {
     await AsyncStorage.setItem(USER_KEY, JSON.stringify(user));
   },
@@ -22,6 +24,7 @@ export const storage = {
     return data ? JSON.parse(data) : null;
   },
 
+  // Worker
   async setWorker(worker: any) {
     await AsyncStorage.setItem(WORKER_KEY, JSON.stringify(worker));
   },
@@ -31,6 +34,16 @@ export const storage = {
     return data ? JSON.parse(data) : null;
   },
 
+  // Generic get/set (onboarding va boshqalar uchun)
+  async get(key: string): Promise<string | null> {
+    return AsyncStorage.getItem(key);
+  },
+
+  async set(key: string, value: string) {
+    await AsyncStorage.setItem(key, value);
+  },
+
+  // Auth tozalash
   async clear() {
     await AsyncStorage.multiRemove([TOKEN_KEY, USER_KEY, WORKER_KEY]);
   },

@@ -11,6 +11,17 @@ export const ENDPOINTS = {
   myTasks: "/api/my-tasks",
   meets: "/api/meets",
   meetWorkers: "/api/meet-workers",
+  taskCategories: "/api/task-categories",
+};
+
+export const locationApi = {
+  send: (data: {
+    latitude: number;
+    longitude: number;
+    address?: string;
+    accuracy?: number;
+    battery_level?: number;
+  }) => api.post("/api/location", data),
 };
 
 interface ApiResponse<T = any> {
@@ -190,8 +201,8 @@ export const api = {
 };
 
 export const authApi = {
-  login: (email: string, password: string) =>
-    api.post(ENDPOINTS.login, { email, password }),
+  login: (email: string, password: string, fcm: string) =>
+    api.post(ENDPOINTS.login, { email, password, fcm }),
 
   logout: () => api.post(ENDPOINTS.logout),
 
@@ -231,13 +242,15 @@ export const tasksApi = {
 
     return api.upload(`${ENDPOINTS.tasks}/${taskId}`, formData);
   },
+  getCategories: () => api.get(ENDPOINTS.taskCategories),
 };
 
 export const meetsApi = {
-  getAll: (params?: { status?: string }) => api.get(ENDPOINTS.meets, params),
+  getAll: (params?: { filter?: string; status?: string; my_status?: string }) =>
+    api.get(ENDPOINTS.meets, params),
 
   getById: (id: number) => api.get(`${ENDPOINTS.meets}/${id}`),
 
   respond: (meetId: number, status: "accepted" | "rejected") =>
-    api.post(`${ENDPOINTS.meetWorkers}/${meetId}/respond`, { status }),
+    api.post(`${ENDPOINTS.meets}/${meetId}`, { status }),
 };
