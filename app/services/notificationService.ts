@@ -5,19 +5,19 @@ import { locationService } from "./locationService";
 
 const BACKGROUND_NOTIFICATION_TASK = "BACKGROUND_NOTIFICATION_TASK";
 
-// Background'da FCM xabar kelganda ishlaydi
 TaskManager.defineTask(
   BACKGROUND_NOTIFICATION_TASK,
   async ({ data, error }) => {
-    if (error) {
-      console.error("❌ Background task xatosi:", error);
-      return;
-    }
+    if (error) return;
 
     const notificationData = (data as any)?.notification?.data;
-    if (notificationData?.type === "location_request") {
-      console.log("📍 Background: GPS so'ralmoqda...");
-      await locationService.sendRealTimeLocation();
+    if (
+      notificationData?.type === "location_request" ||
+      notificationData?.type === "scheduled_location"
+    ) {
+      await locationService.sendLocation(
+        notificationData?.type === "location_request",
+      );
     }
   },
 );
@@ -52,16 +52,11 @@ export const notificationService = {
         finalStatus = status;
       }
 
-      if (finalStatus !== "granted") {
-        console.log("❌ Notification ruxsati berilmadi");
-        return null;
-      }
+      if (finalStatus !== "granted") return null;
 
       const tokenData = await Notifications.getDevicePushTokenAsync();
-      console.log("✅ FCM token:", tokenData.data);
       return tokenData.data as string;
-    } catch (error) {
-      console.error("❌ FCM token xatosi:", error);
+    } catch {
       return null;
     }
   },
@@ -69,27 +64,24 @@ export const notificationService = {
   async registerBackgroundTask() {
     try {
       await Notifications.registerTaskAsync(BACKGROUND_NOTIFICATION_TASK);
-      console.log("✅ Background notification task ro'yxatdan o'tdi");
-    } catch (error) {
-      console.error("❌ Background task xatosi:", error);
-    }
+    } catch {}
   },
 
   setupNotificationListeners() {
     const receivedListener = Notifications.addNotificationReceivedListener(
       async (notification) => {
         const data = notification.request.content.data;
-        if (data?.type === "location_request") {
-          console.log("📍 Foreground: GPS so'ralmoqda...");
-          await locationService.sendRealTimeLocation();
+        if (
+          data?.type === "location_request" ||
+          data?.type === "scheduled_location"
+        ) {
+          await locationService.sendLocation(data?.type === "location_request");
         }
       },
     );
 
     const responseListener =
-      Notifications.addNotificationResponseReceivedListener((response) => {
-        console.log("👆 Notification bosildi:", response);
-      });
+      Notifications.addNotificationResponseReceivedListener(() => {});
 
     return () => {
       receivedListener.remove();
