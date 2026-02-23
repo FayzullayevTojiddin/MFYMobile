@@ -1,5 +1,6 @@
 import Screen from "@/components/Screen";
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
 import {
@@ -45,6 +46,13 @@ const formatDate = (dateStr: string): string => {
   });
 };
 
+const getGreeting = (): string => {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Xayrli tong";
+  if (hour < 18) return "Xayrli kun";
+  return "Xayrli kech";
+};
+
 export default function VazifalarScreen() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
@@ -78,10 +86,10 @@ export default function VazifalarScreen() {
     priority: tasks.filter((t) => t.is_priority).length,
   };
 
-  const getCardStyle = (task: Task) => {
-    if (task.is_overdue) return { border: "#ef4444", bg: "#ef444408" };
-    if (task.is_priority) return { border: "#f59e0b", bg: "#f59e0b08" };
-    return { border: "#2a3a52", bg: "#1a2a40" };
+  const getAccentColor = (task: Task) => {
+    if (task.is_overdue) return "#ef4444";
+    if (task.is_priority) return "#f59e0b";
+    return "#0ea5e9";
   };
 
   const getStatusBadge = (task: Task) => {
@@ -89,111 +97,136 @@ export default function VazifalarScreen() {
       return {
         text: "Kechikkan",
         color: "#ef4444",
-        bg: "#ef444418",
-        icon: "alert-circle-outline" as const,
+        bg: "#ef444420",
+        icon: "alert-circle" as const,
       };
     if (task.is_priority)
       return {
         text: "Muhim",
         color: "#f59e0b",
-        bg: "#f59e0b18",
-        icon: "flag-outline" as const,
+        bg: "#f59e0b20",
+        icon: "flag" as const,
       };
     return {
       text: "Jarayonda",
       color: "#0ea5e9",
-      bg: "#0ea5e918",
-      icon: "time-outline" as const,
+      bg: "#0ea5e920",
+      icon: "time" as const,
     };
   };
 
   const renderTask = ({ item }: { item: Task }) => {
-    const card = getCardStyle(item);
+    const accent = getAccentColor(item);
     const badge = getStatusBadge(item);
     const days = daysLeft(item.deadline_at);
+    const progress =
+      item.count > 0
+        ? Math.round((item.approved_count / item.count) * 100)
+        : 0;
 
     return (
       <TouchableOpacity
-        style={[
-          styles.card,
-          { borderColor: card.border, backgroundColor: card.bg },
-        ]}
+        style={styles.card}
         activeOpacity={0.7}
         onPress={() => router.push(`/task/${item.id}`)}
       >
-        {item.is_priority && (
-          <View style={styles.priorityBadge}>
-            <Ionicons name="flag" size={10} color="#f59e0b" />
-          </View>
-        )}
+        <View style={[styles.cardAccent, { backgroundColor: accent }]} />
 
-        <View style={styles.cardTop}>
-          <View style={styles.categoryBox}>
-            <Ionicons name="folder-outline" size={14} color="#5a7fa5" />
-            <Text style={styles.categoryText}>{item.category.name}</Text>
+        <View style={styles.cardContent}>
+          {/* Card header */}
+          <View style={styles.cardTop}>
+            <View style={styles.categoryBox}>
+              <View style={[styles.categoryIcon, { backgroundColor: `${accent}15` }]}>
+                <Ionicons
+                  name={item.task_category_id === 1 ? "finger-print-outline" : "document-text-outline"}
+                  size={16}
+                  color={accent}
+                />
+              </View>
+              <Text style={styles.categoryText} numberOfLines={1}>
+                {item.category.name}
+              </Text>
+            </View>
+            <View style={[styles.badge, { backgroundColor: badge.bg }]}>
+              <Ionicons name={badge.icon} size={11} color={badge.color} />
+              <Text style={[styles.badgeText, { color: badge.color }]}>
+                {badge.text}
+              </Text>
+            </View>
           </View>
-          <View style={[styles.badge, { backgroundColor: badge.bg }]}>
-            <Ionicons name={badge.icon} size={12} color={badge.color} />
-            <Text style={[styles.badgeText, { color: badge.color }]}>
-              {badge.text}
-            </Text>
-          </View>
-        </View>
 
-        <View style={styles.progressSection}>
-          <View style={styles.countRow}>
-            <Ionicons name="layers-outline" size={16} color="#5a7fa5" />
-            <Text style={styles.countLabel}>Topshiriq:</Text>
-            <Text style={styles.countValue}>
-              <Text style={{ color: "#10b981" }}>{item.approved_count}</Text>
-              <Text style={{ color: "#5a7fa5" }}> / {item.count} ta</Text>
-            </Text>
+          {/* Progress */}
+          <View style={styles.progressSection}>
+            <View style={styles.progressHeader}>
+              <Text style={styles.progressLabel}>
+                Bajarilish: <Text style={styles.progressValue}>{item.approved_count}/{item.count}</Text>
+              </Text>
+              <Text style={[styles.progressPercent, { color: accent }]}>
+                {progress}%
+              </Text>
+            </View>
+            <View style={styles.progressBar}>
+              <View
+                style={[
+                  styles.progressFill,
+                  {
+                    width: `${Math.min(progress, 100)}%`,
+                    backgroundColor: accent,
+                  },
+                ]}
+              />
+            </View>
           </View>
-          <View style={styles.progressBar}>
+
+          {/* Card footer */}
+          <View style={styles.cardBottom}>
+            <View style={styles.dateRow}>
+              <Ionicons name="calendar-outline" size={13} color="#5a7fa5" />
+              <Text style={styles.dateText}>{formatDate(item.deadline_at)}</Text>
+            </View>
             <View
               style={[
-                styles.progressFill,
+                styles.daysChip,
                 {
-                  width: `${Math.min((item.approved_count / item.count) * 100, 100)}%`,
                   backgroundColor:
-                    item.approved_count >= item.count ? "#10b981" : "#0ea5e9",
-                },
-              ]}
-            />
-          </View>
-        </View>
-
-        <View style={styles.cardBottom}>
-          <View style={styles.dateRow}>
-            <Ionicons name="calendar-outline" size={14} color="#5a7fa5" />
-            <Text style={styles.dateText}>{formatDate(item.deadline_at)}</Text>
-          </View>
-          <View style={styles.daysRow}>
-            <Ionicons
-              name={days < 0 ? "warning-outline" : "hourglass-outline"}
-              size={13}
-              color={days < 0 ? "#ef4444" : days <= 3 ? "#f59e0b" : "#0ea5e9"}
-            />
-            <Text
-              style={[
-                styles.daysText,
-                {
-                  color:
-                    days < 0 ? "#ef4444" : days <= 3 ? "#f59e0b" : "#0ea5e9",
+                    days < 0
+                      ? "#ef444415"
+                      : days <= 3
+                        ? "#f59e0b15"
+                        : "#0ea5e915",
                 },
               ]}
             >
-              {days < 0
-                ? `${Math.abs(days)} kun kechikkan`
-                : days === 0
-                  ? "Bugun tugaydi"
-                  : `${days} kun qoldi`}
-            </Text>
+              <Ionicons
+                name={days < 0 ? "warning" : "hourglass-outline"}
+                size={11}
+                color={days < 0 ? "#ef4444" : days <= 3 ? "#f59e0b" : "#0ea5e9"}
+              />
+              <Text
+                style={[
+                  styles.daysText,
+                  {
+                    color:
+                      days < 0
+                        ? "#ef4444"
+                        : days <= 3
+                          ? "#f59e0b"
+                          : "#0ea5e9",
+                  },
+                ]}
+              >
+                {days < 0
+                  ? `${Math.abs(days)} kun o'tgan`
+                  : days === 0
+                    ? "Bugun"
+                    : `${days} kun`}
+              </Text>
+            </View>
           </View>
         </View>
 
         <View style={styles.cardArrow}>
-          <Ionicons name="chevron-forward" size={18} color="#2a3a52" />
+          <Ionicons name="chevron-forward" size={16} color="#3a4a62" />
         </View>
       </TouchableOpacity>
     );
@@ -229,34 +262,69 @@ export default function VazifalarScreen() {
     <Screen>
       {/* Header */}
       <View style={styles.header}>
-        <View>
-          <Text style={styles.welcome}>Assalomu alaykum</Text>
+        <View style={styles.headerLeft}>
+          <Text style={styles.greeting}>{getGreeting()} 👋</Text>
           <Text style={styles.subtitle}>Hokim topshiriqlari</Text>
+        </View>
+        <View style={styles.taskCount}>
+          <Text style={styles.taskCountNum}>{tasks.length}</Text>
+          <Text style={styles.taskCountLabel}>vazifa</Text>
         </View>
       </View>
 
       {/* Stats */}
       <View style={styles.statsRow}>
-        <View style={[styles.statBox, { borderColor: "#0ea5e930" }]}>
-          <Ionicons name="pulse-outline" size={18} color="#0ea5e9" />
+        <LinearGradient
+          colors={["#0ea5e912", "#0ea5e905"]}
+          style={[styles.statBox]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+        >
+          <View style={[styles.statIconBox, { backgroundColor: "#0ea5e918" }]}>
+            <Ionicons name="checkmark-done" size={18} color="#0ea5e9" />
+          </View>
           <Text style={[styles.statNum, { color: "#0ea5e9" }]}>
             {stats.active}
           </Text>
           <Text style={styles.statLabel}>Faol</Text>
-        </View>
-        <View style={[styles.statBox, { borderColor: "#ef444430" }]}>
-          <Ionicons name="alert-circle-outline" size={18} color="#ef4444" />
+        </LinearGradient>
+
+        <LinearGradient
+          colors={["#ef444412", "#ef444405"]}
+          style={[styles.statBox]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+        >
+          <View style={[styles.statIconBox, { backgroundColor: "#ef444418" }]}>
+            <Ionicons name="alert-circle" size={18} color="#ef4444" />
+          </View>
           <Text style={[styles.statNum, { color: "#ef4444" }]}>
             {stats.overdue}
           </Text>
           <Text style={styles.statLabel}>Kechikkan</Text>
-        </View>
-        <View style={[styles.statBox, { borderColor: "#f59e0b30" }]}>
-          <Ionicons name="flag-outline" size={18} color="#f59e0b" />
+        </LinearGradient>
+
+        <LinearGradient
+          colors={["#f59e0b12", "#f59e0b05"]}
+          style={[styles.statBox]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+        >
+          <View style={[styles.statIconBox, { backgroundColor: "#f59e0b18" }]}>
+            <Ionicons name="flag" size={18} color="#f59e0b" />
+          </View>
           <Text style={[styles.statNum, { color: "#f59e0b" }]}>
             {stats.priority}
           </Text>
           <Text style={styles.statLabel}>Muhim</Text>
+        </LinearGradient>
+      </View>
+
+      {/* Section title */}
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>Vazifalar</Text>
+        <View style={styles.sectionBadge}>
+          <Text style={styles.sectionBadgeText}>{tasks.length} ta</Text>
         </View>
       </View>
 
@@ -281,7 +349,10 @@ export default function VazifalarScreen() {
               style={styles.emptyImage}
               resizeMode="contain"
             />
-            <Text style={styles.emptyText}>Barcha vazifalar bajarilgan</Text>
+            <Text style={styles.emptyTitle}>Ajoyib!</Text>
+            <Text style={styles.emptyText}>
+              Barcha vazifalar bajarilgan
+            </Text>
           </View>
         }
       />
@@ -307,111 +378,193 @@ const styles = StyleSheet.create({
   },
   retryText: { color: "#fff", fontSize: 14, fontWeight: "600" },
 
+  // Header
   header: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 8,
-  },
-  welcome: { fontSize: 22, fontWeight: "700", color: "#ffffff" },
-  subtitle: { fontSize: 13, color: "#5a7fa5", marginTop: 2 },
-
-  statsRow: {
     flexDirection: "row",
     justifyContent: "space-between",
+    alignItems: "center",
     paddingHorizontal: 20,
-    marginTop: 12,
+    paddingTop: 16,
+    paddingBottom: 12,
+  },
+  headerLeft: { flex: 1 },
+  greeting: { fontSize: 24, fontWeight: "800", color: "#ffffff", letterSpacing: -0.3 },
+  subtitle: { fontSize: 13, color: "#5a7fa5", marginTop: 4 },
+  taskCount: {
+    alignItems: "center",
+    backgroundColor: "#1a2a40",
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: "#2a3a52",
+  },
+  taskCountNum: { fontSize: 20, fontWeight: "800", color: "#0ea5e9" },
+  taskCountLabel: { fontSize: 10, color: "#5a7fa5", marginTop: 1 },
+
+  // Stats
+  statsRow: {
+    flexDirection: "row",
+    paddingHorizontal: 20,
+    marginTop: 8,
     gap: 10,
   },
   statBox: {
     flex: 1,
-    borderRadius: 12,
-    paddingVertical: 14,
+    borderRadius: 16,
+    paddingVertical: 16,
     alignItems: "center",
-    backgroundColor: "#1a2a40",
     borderWidth: 1,
-    gap: 4,
+    borderColor: "#1e2e45",
+    gap: 6,
   },
-  statNum: { fontSize: 22, fontWeight: "bold" },
-  statLabel: { color: "#5a7fa5", fontSize: 11 },
+  statIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  statNum: { fontSize: 24, fontWeight: "800" },
+  statLabel: { color: "#5a7fa5", fontSize: 11, fontWeight: "500" },
 
+  // Section header
+  sectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    marginTop: 20,
+    marginBottom: 4,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#8a9bb5",
+  },
+  sectionBadge: {
+    backgroundColor: "#1a2a40",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  sectionBadgeText: { color: "#5a7fa5", fontSize: 12, fontWeight: "600" },
+
+  // List
   listContent: {
     paddingHorizontal: 20,
-    paddingTop: 16,
+    paddingTop: 12,
     paddingBottom: 20,
   },
 
+  // Card
   card: {
-    borderRadius: 14,
-    padding: 16,
+    flexDirection: "row",
+    backgroundColor: "#1a2a40",
+    borderRadius: 16,
     marginBottom: 12,
+    overflow: "hidden",
     borderWidth: 1,
-    position: "relative",
+    borderColor: "#233347",
   },
-  priorityBadge: {
-    position: "absolute",
-    top: -4,
-    left: -4,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: "#f59e0b20",
-    borderWidth: 1,
-    borderColor: "#f59e0b40",
-    justifyContent: "center",
-    alignItems: "center",
+  cardAccent: {
+    width: 4,
+  },
+  cardContent: {
+    flex: 1,
+    padding: 16,
   },
   cardTop: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 12,
+    marginBottom: 14,
   },
-  categoryBox: { flexDirection: "row", alignItems: "center", gap: 6, flex: 1 },
-  categoryText: { color: "#8a9bb5", fontSize: 13 },
+  categoryBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    flex: 1,
+  },
+  categoryIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  categoryText: {
+    color: "#e2e8f0",
+    fontSize: 15,
+    fontWeight: "600",
+    flex: 1,
+  },
   badge: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingVertical: 5,
     borderRadius: 8,
     gap: 4,
   },
-  badgeText: { fontSize: 11, fontWeight: "600" },
+  badgeText: { fontSize: 11, fontWeight: "700" },
 
-  progressSection: { marginBottom: 12 },
-  countRow: {
+  // Progress
+  progressSection: { marginBottom: 14 },
+  progressHeader: {
     flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
-    gap: 8,
     marginBottom: 8,
   },
-  countLabel: { color: "#5a7fa5", fontSize: 14 },
-  countValue: { fontSize: 16, fontWeight: "bold" },
-
+  progressLabel: { color: "#5a7fa5", fontSize: 13 },
+  progressValue: { color: "#8a9bb5", fontWeight: "700" },
+  progressPercent: { fontSize: 13, fontWeight: "800" },
   progressBar: {
-    height: 4,
-    backgroundColor: "#2a3a52",
-    borderRadius: 2,
+    height: 6,
+    backgroundColor: "#0f1b2d",
+    borderRadius: 3,
     overflow: "hidden",
   },
-  progressFill: { height: "100%", borderRadius: 2 },
+  progressFill: {
+    height: "100%",
+    borderRadius: 3,
+  },
 
+  // Card bottom
   cardBottom: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    borderTopWidth: 1,
-    borderTopColor: "#2a3a5230",
     paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "#0f1b2d",
   },
   dateRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-  dateText: { color: "#5a7fa5", fontSize: 13 },
-  daysRow: { flexDirection: "row", alignItems: "center", gap: 4 },
-  daysText: { fontSize: 13, fontWeight: "600" },
+  dateText: { color: "#5a7fa5", fontSize: 12 },
+  daysChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  daysText: { fontSize: 12, fontWeight: "700" },
 
-  cardArrow: { position: "absolute", right: 16, top: "50%", marginTop: -9 },
+  cardArrow: {
+    justifyContent: "center",
+    paddingRight: 12,
+  },
 
+  // Empty
   emptyBox: { alignItems: "center", marginTop: 40 },
-  emptyImage: { width: 180, height: 180, marginBottom: 16 },
-  emptyText: { color: "#5a7fa5", fontSize: 15 },
+  emptyImage: { width: 160, height: 160, marginBottom: 12 },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#ffffff",
+    marginBottom: 4,
+  },
+  emptyText: { color: "#5a7fa5", fontSize: 14 },
 });

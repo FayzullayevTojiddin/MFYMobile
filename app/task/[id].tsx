@@ -11,11 +11,14 @@ import {
   Image,
   Linking,
   Modal,
+  ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { tasksApi } from "../api";
 
 interface FileItem {
@@ -111,6 +114,7 @@ const getFileIcon = (fileName: string): keyof typeof Ionicons.glyphMap => {
 
 export default function TaskDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const insets = useSafeAreaInsets();
 
   const [task, setTask] = useState<TaskDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -120,6 +124,7 @@ export default function TaskDetailScreen() {
   const [uploadStep, setUploadStep] = useState<UploadStep>("location");
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [selectedFiles, setSelectedFiles] = useState<SelectedFile[]>([]);
+  const [description, setDescription] = useState("");
 
   const [location, setLocation] = useState<LocationCoords | null>(null);
   const [locationLoading, setLocationLoading] = useState(false);
@@ -275,13 +280,13 @@ export default function TaskDetailScreen() {
   };
 
   const handleUpload = async () => {
-    if (!task || !location || selectedFiles.length === 0) return;
+    const hasFiles = selectedFiles.length > 0;
+    const hasDescription = description.trim().length > 0;
+
+    if (!task || !location || (!hasFiles && !hasDescription)) return;
 
     setUploadStep("uploading");
     setUploadError(null);
-
-    console.log("📤 Upload boshlanmoqda...");
-    console.log("📁 Files:", selectedFiles);
 
     try {
       const response = await tasksApi.uploadFiles(
@@ -291,7 +296,7 @@ export default function TaskDetailScreen() {
           name: f.name,
           type: f.type,
         })),
-        undefined,
+        hasDescription ? description.trim() : undefined,
         { latitude: location.latitude, longitude: location.longitude },
       );
 
@@ -302,6 +307,7 @@ export default function TaskDetailScreen() {
         setTimeout(() => {
           setModalVisible(false);
           setSelectedFiles([]);
+          setDescription("");
           setLocation(null);
           setUploadStep("location");
           fetchTask();
@@ -320,6 +326,7 @@ export default function TaskDetailScreen() {
   const openUploadModal = () => {
     setUploadStep("location");
     setSelectedFiles([]);
+    setDescription("");
     setLocation(null);
     setLocationError(null);
     setUploadError(null);
@@ -515,9 +522,11 @@ export default function TaskDetailScreen() {
       );
     }
 
+    const canSubmit = selectedFiles.length > 0 || description.trim().length > 0;
+
     return (
-      <View style={styles.modalBody}>
-        <Text style={styles.modalTitle}>Fayl yuklash</Text>
+      <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
+        <Text style={styles.modalTitle}>Vazifa yuborish</Text>
 
         <View style={styles.selectedCatBox}>
           <Ionicons name="folder" size={16} color="#0ea5e9" />
@@ -536,6 +545,23 @@ export default function TaskDetailScreen() {
           </View>
         )}
 
+        <Text style={styles.descriptionLabel}>Tavsif</Text>
+        <View style={styles.descriptionInputBox}>
+          <TextInput
+            style={styles.descriptionInput}
+            placeholder="Tavsif yozing..."
+            placeholderTextColor="#4a5568"
+            value={description}
+            onChangeText={setDescription}
+            multiline
+            numberOfLines={4}
+            textAlignVertical="top"
+          />
+        </View>
+
+        <Text style={styles.descriptionLabel}>
+          Fayl biriktirish <Text style={styles.optionalText}>(ixtiyoriy)</Text>
+        </Text>
         <TouchableOpacity style={styles.pickFileBtn} onPress={handlePickFiles}>
           <Ionicons name="cloud-upload-outline" size={28} color="#0ea5e9" />
           <Text style={styles.pickFileText}>Fayl tanlash</Text>
@@ -577,15 +603,17 @@ export default function TaskDetailScreen() {
         <TouchableOpacity
           style={[
             styles.uploadBtn,
-            selectedFiles.length === 0 && styles.uploadBtnDisabled,
+            !canSubmit && styles.uploadBtnDisabled,
           ]}
           onPress={handleUpload}
-          disabled={selectedFiles.length === 0}
+          disabled={!canSubmit}
         >
           <Ionicons name="cloud-upload-outline" size={20} color="#fff" />
-          <Text style={styles.uploadBtnText}>Yuklash</Text>
+          <Text style={styles.uploadBtnText}>Yuborish</Text>
         </TouchableOpacity>
-      </View>
+
+        <View style={{ height: 20 }} />
+      </ScrollView>
     );
   };
 
@@ -716,7 +744,7 @@ export default function TaskDetailScreen() {
 
       {isAttendanceTask ? (
         <TouchableOpacity
-          style={styles.attendanceBtn}
+          style={[styles.attendanceBtn, { bottom: 24 + insets.bottom }]}
           onPress={openUploadModal}
           activeOpacity={0.8}
         >
@@ -725,7 +753,7 @@ export default function TaskDetailScreen() {
         </TouchableOpacity>
       ) : (
         <TouchableOpacity
-          style={styles.fab}
+          style={[styles.fab, { bottom: 24 + insets.bottom }]}
           onPress={openUploadModal}
           activeOpacity={0.8}
         >
@@ -903,7 +931,6 @@ const styles = StyleSheet.create({
   emptyText: { color: "#5a7fa5", fontSize: 15 },
   fab: {
     position: "absolute",
-    bottom: 24,
     right: 24,
     width: 56,
     height: 56,
@@ -919,7 +946,6 @@ const styles = StyleSheet.create({
   },
   attendanceBtn: {
     position: "absolute",
-    bottom: 24,
     left: 20,
     right: 20,
     flexDirection: "row",
@@ -995,6 +1021,31 @@ const styles = StyleSheet.create({
     borderColor: "#0ea5e930",
   },
   selectedCatText: { color: "#0ea5e9", fontSize: 13, fontWeight: "600" },
+  descriptionLabel: {
+    color: "#8a9bb5",
+    fontSize: 14,
+    fontWeight: "600",
+    marginBottom: 8,
+  },
+  optionalText: {
+    color: "#5a7fa5",
+    fontSize: 12,
+    fontWeight: "400",
+  },
+  descriptionInputBox: {
+    backgroundColor: "#1a2a40",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#2a3a52",
+    marginBottom: 16,
+  },
+  descriptionInput: {
+    color: "#ffffff",
+    fontSize: 15,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    minHeight: 100,
+  },
   locationInfoBox: {
     flexDirection: "row",
     alignItems: "center",

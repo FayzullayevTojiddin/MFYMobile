@@ -27,7 +27,7 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <StatusBar style="light" backgroundColor="#0f1b2d" />
-      <Stack screenOptions={{ headerShown: false }}>
+      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#0f1b2d' } }}>
         <Stack.Screen name="index" />
         <Stack.Screen name="onboarding" />
         <Stack.Screen name="login" />

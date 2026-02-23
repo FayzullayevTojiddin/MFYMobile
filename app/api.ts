@@ -232,13 +232,15 @@ export const tasksApi = {
       formData.append("longitude", location.longitude.toString());
     }
 
-    files.forEach((file, i) => {
-      formData.append(`files[${i}]`, {
-        uri: file.uri,
-        name: file.name,
-        type: file.type || "application/octet-stream",
-      } as any);
-    });
+    if (files.length > 0) {
+      files.forEach((file, i) => {
+        formData.append(`files[${i}]`, {
+          uri: file.uri,
+          name: file.name,
+          type: file.type || "application/octet-stream",
+        } as any);
+      });
+    }
 
     return api.upload(`${ENDPOINTS.tasks}/${taskId}`, formData);
   },

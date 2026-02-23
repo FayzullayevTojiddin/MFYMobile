@@ -15,6 +15,7 @@ import {
   View,
 } from "react-native";
 import { api, authApi, BASE_URL, ENDPOINTS, meetsApi } from "../api";
+import { meetAlarmService } from "../services/notificationService";
 import { storage } from "../storage";
 
 interface Meet {
@@ -144,14 +145,22 @@ export default function ProfileScreen() {
     setRespondingMeetId(meetId);
     const res = await meetsApi.respond(meetId, "accepted");
     setRespondingMeetId(null);
-    if (res.success) fetchData();
+    if (res.success) {
+      // Alarm bildirishnomalarini bekor qilish
+      await meetAlarmService.cancelAlarm(meetId);
+      fetchData();
+    }
   };
 
   const handleRejectMeet = async (meetId: number) => {
     setRespondingMeetId(meetId);
     const res = await meetsApi.respond(meetId, "rejected");
     setRespondingMeetId(null);
-    if (res.success) fetchData();
+    if (res.success) {
+      // Alarm bildirishnomalarini bekor qilish
+      await meetAlarmService.cancelAlarm(meetId);
+      fetchData();
+    }
   };
 
   const handleOpenMap = (location: { lat: number; lng: number }) => {
