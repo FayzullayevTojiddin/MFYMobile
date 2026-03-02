@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "634153695769",
+    "project_id": "mfymobile-71006",
+    "storage_bucket": "mfymobile-71006.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:634153695769:android:e67bfde46b55ca8e6d8888",
+        "android_client_info": {
+          "package_name": "com.mfy.mobile.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCb88dEK98pj2HfCTvrYbImtUK-LKXK9Gs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

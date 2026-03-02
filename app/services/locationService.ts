@@ -108,8 +108,15 @@ async function sendLocationToServer(
 export const locationService = {
   async requestPermissions(): Promise<boolean> {
     try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      return status === "granted";
+      const { status: fgStatus } =
+        await Location.requestForegroundPermissionsAsync();
+      if (fgStatus !== "granted") return false;
+
+      // Background permission ham so'rash (GPS so'rov background da keladi)
+      const { status: bgStatus } =
+        await Location.requestBackgroundPermissionsAsync();
+      // Background rad qilinsa ham, foreground ruxsat bilan davom etamiz
+      return true;
     } catch {
       return false;
     }
@@ -120,14 +127,31 @@ export const locationService = {
       const hasPermission = await this.requestPermissions();
       if (!hasPermission) return false;
 
-      const location = await Location.getCurrentPositionAsync({
+      // Timeout bilan joylashuvni olish (15 soniya)
+      const locationPromise = Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.High,
       });
 
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("Location timeout")), 15000),
+      );
+
+      const location = await Promise.race([locationPromise, timeoutPromise]);
+
       await sendLocationToServer(location, isRealTime);
       return true;
-    } catch {
-      return false;
+    } catch (error) {
+      console.error("sendLocation error:", error);
+      // Agar High accuracy bilan bo'lmasa, Balanced bilan urinib ko'ramiz
+      try {
+        const fallbackLocation = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+        await sendLocationToServer(fallbackLocation, isRealTime);
+        return true;
+      } catch {
+        return false;
+      }
     }
   },
 

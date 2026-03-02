@@ -33,6 +33,11 @@ TaskManager.defineTask(
         notificationData.meet_id,
         notificationData.title || "Yangi uchrashuv",
         notificationData.body || "Uchrashuvga taklif qilindingiz!",
+        {
+          description: notificationData.description || "",
+          address: notificationData.address || "",
+          meet_time: notificationData.meet_time || "",
+        },
       );
     }
   },
@@ -73,7 +78,7 @@ export const meetAlarmService = {
         sound: "default",
         lockscreenVisibility:
           Notifications.AndroidNotificationVisibility.PUBLIC,
-        bypassDno: true,
+        bypassDnd: true,
         enableVibrate: true,
         enableLights: true,
         lightColor: "#ef4444",
@@ -82,7 +87,12 @@ export const meetAlarmService = {
   },
 
   // Alarm boshlash — takrorlanuvchi bildirishnomalar rejalashtirish
-  async startAlarm(meetId: number, title: string, body: string) {
+  async startAlarm(
+    meetId: number,
+    title: string,
+    body: string,
+    extraData?: { description?: string; address?: string; meet_time?: string },
+  ) {
     // Avvalgi alarmni bekor qilish
     await this.cancelAlarm(meetId);
 
@@ -94,7 +104,14 @@ export const meetAlarmService = {
           content: {
             title: `🔔 ${title}`,
             body: body,
-            data: { type: "meet_alarm", meet_id: meetId },
+            data: {
+              type: "meet_alarm",
+              meet_id: meetId,
+              title: title,
+              description: extraData?.description || "",
+              address: extraData?.address || "",
+              meet_time: extraData?.meet_time || "",
+            },
             sound: true,
             priority: Notifications.AndroidNotificationPriority.MAX,
             ...(Platform.OS === "android" ? { channelId: "meet-alarm" } : {}),
@@ -244,13 +261,33 @@ export const notificationService = {
           );
         }
 
-        // Uchrashuv taklifi — alarm boshlash
+        // Uchrashuv taklifi — alarm ekranga o'tish
         if (data?.type === "meet_invite") {
+          const extraData = {
+            description: data.description || "",
+            address: data.address || "",
+            meet_time: data.meet_time || "",
+          };
+
           await meetAlarmService.startAlarm(
             data.meet_id,
             data.title || "Yangi uchrashuv",
             data.body || "Uchrashuvga taklif qilindingiz!",
+            extraData,
           );
+
+          // To'liq ekran alarm sahifasiga o'tish
+          const { router } = require("expo-router");
+          router.push({
+            pathname: "/alarm",
+            params: {
+              meetId: String(data.meet_id),
+              title: data.title || "Yangi uchrashuv",
+              description: extraData.description,
+              address: extraData.address,
+              meetTime: extraData.meet_time,
+            },
+          });
         }
       },
     );
@@ -261,13 +298,22 @@ export const notificationService = {
         async (response) => {
           const data = response.notification.request.content.data;
 
-          // Uchrashuv bildirishnomasini bosganda — profil sahifaga o'tish
+          // Uchrashuv bildirishnomasini bosganda — alarm sahifaga o'tish
           if (
             data?.type === "meet_invite" ||
             data?.type === "meet_alarm"
           ) {
             const { router } = require("expo-router");
-            router.push("/(tabs)/profile");
+            router.push({
+              pathname: "/alarm",
+              params: {
+                meetId: String(data.meet_id),
+                title: data.title || "Yangi uchrashuv",
+                description: data.description || "",
+                address: data.address || "",
+                meetTime: data.meet_time || "",
+              },
+            });
           }
         },
       );

@@ -1,7 +1,29 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npx expo install:*)"
+      "Bash(npx expo install:*)",
+      "Bash(npx eas build:*)",
+      "Bash(npx eas build:view:*)",
+      "Bash(npx eas-cli build --platform android --profile preview --non-interactive)",
+      "Bash(java -version:*)",
+      "Bash(export JAVA_HOME=\"/c/Program Files/Android/Android Studio/jbr\")",
+      "Bash(export ANDROID_HOME=\"$LOCALAPPDATA/Android/Sdk\")",
+      "Bash(export PATH=\"$JAVA_HOME/bin:$PATH\")",
+      "Bash(npx eas-cli:*)",
+      "Bash(export PATH=\"$JAVA_HOME/bin:$ANDROID_HOME/platform-tools:$PATH\")",
+      "Bash(npx expo prebuild:*)",
+      "Bash(./gradlew assembleRelease:*)",
+      "Bash(\"/c/Program Files/Android/Android Studio/bin/sdkmanager.bat\" --list)",
+      "Bash(npx expo run:android:*)",
+      "Bash(where:*)",
+      "Bash(where powershell)",
+      "Bash(powershell -Command \"Invoke-WebRequest -Uri ''https://dl.google.com/android/repository/commandlinetools-win-11076708_latest.zip'' -OutFile ''C:\\\\Users\\\\fayzu\\\\Desktop\\\\cmdline-tools.zip''\")",
+      "Bash(printf:*)",
+      "Bash(EXPO_CLI_USERNAME=tfayzullaev49@gmail.com EXPO_CLI_PASSWORD=As123456 npx eas-cli login --non-interactive)",
+      "Bash(npx expo login --help:*)",
+      "Bash(npx expo login:*)",
+      "Bash(keytool:*)",
+      "Bash(node:*)"
     ]
   }
 }

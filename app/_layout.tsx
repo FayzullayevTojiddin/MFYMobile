@@ -34,6 +34,14 @@ export default function RootLayout() {
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="task/[id]" />
         <Stack.Screen name="rank" />
+        <Stack.Screen
+          name="alarm"
+          options={{
+            presentation: "fullScreenModal",
+            animation: "fade",
+            gestureEnabled: false,
+          }}
+        />
       </Stack>
     </SafeAreaProvider>
   );

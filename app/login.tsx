@@ -1,10 +1,12 @@
 import { Ionicons } from "@expo/vector-icons";
+import * as Notifications from "expo-notifications";
 import { router } from "expo-router";
 import { useRef, useState } from "react";
 import {
   Alert,
   Animated,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   StyleSheet,
   Text,
@@ -14,7 +16,6 @@ import {
 } from "react-native";
 import { authApi } from "./api";
 import { storage } from "./storage";
-import { getFcmToken } from "./utils/notifications";
 
 export default function LoginScreen() {
   const [email, setEmail] = useState("");
@@ -74,15 +75,6 @@ export default function LoginScreen() {
   };
 
   const handleLogin = async () => {
-    const fcmToken = await getFcmToken();
-
-    if (!fcmToken) {
-      Alert.alert(
-        "Xatolik",
-        "Push notification ruxsati kerak. Sozlamalardan yoqing.",
-      );
-      return;
-    }
     if (!email && !password) {
       showError("Email va parolni kiriting!");
       return;
@@ -98,6 +90,61 @@ export default function LoginScreen() {
 
     setLoading(true);
 
+    // 1. Bildirishnoma ruxsatini tekshirish
+    try {
+      const { status: existingStatus } =
+        await Notifications.getPermissionsAsync();
+      let finalStatus = existingStatus;
+
+      if (existingStatus !== "granted") {
+        const { status } = await Notifications.requestPermissionsAsync();
+        finalStatus = status;
+      }
+
+      if (finalStatus !== "granted") {
+        setLoading(false);
+        Alert.alert(
+          "Bildirishnoma ruxsati kerak",
+          "Tizim ishlashi uchun bildirishnoma ruxsatini yoqing.",
+          [
+            {
+              text: "Sozlamalarni ochish",
+              onPress: () => Linking.openSettings(),
+            },
+            { text: "Bekor qilish", style: "cancel" },
+          ],
+        );
+        return;
+      }
+    } catch (err: any) {
+      setLoading(false);
+      showError("Ruxsat tekshirishda xatolik: " + (err?.message || err));
+      return;
+    }
+
+    // 2. FCM token olish
+    let fcmToken: string;
+    try {
+      const tokenData = await Notifications.getDevicePushTokenAsync();
+      fcmToken = tokenData.data as string;
+    } catch (err: any) {
+      setLoading(false);
+      Alert.alert(
+        "FCM token olishda xatolik",
+        (err?.message || String(err)) +
+          "\n\nInternet aloqasini va Google Play xizmatlarini tekshiring.",
+        [
+          {
+            text: "Qayta urinish",
+            onPress: () => handleLogin(),
+          },
+          { text: "Bekor qilish", style: "cancel" },
+        ],
+      );
+      return;
+    }
+
+    // 3. Login
     const response = await authApi.login(email, password, fcmToken);
 
     if (!response.success) {
