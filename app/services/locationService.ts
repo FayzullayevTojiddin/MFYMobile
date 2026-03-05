@@ -2,6 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import NetInfo from "@react-native-community/netinfo";
 import * as Battery from "expo-battery";
 import * as Location from "expo-location";
+
 import { storage } from "../storage";
 
 const API_URL = "https://donoxonsi.uz";
@@ -47,34 +48,34 @@ async function sendLocationToServer(
   location: Location.LocationObject,
   isRealTime = false,
 ) {
+  const token = await storage.getToken();
+  if (!token) return;
+
+  let batteryLevel = 0;
   try {
-    const token = await storage.getToken();
-    if (!token) return;
+    batteryLevel = await Battery.getBatteryLevelAsync();
+  } catch {}
 
-    let batteryLevel = 0;
-    try {
-      batteryLevel = await Battery.getBatteryLevelAsync();
-    } catch {}
+  const locationData = {
+    latitude: location.coords.latitude,
+    longitude: location.coords.longitude,
+    accuracy: location.coords.accuracy,
+    battery_level: Math.round(batteryLevel * 100),
+    is_real_time: isRealTime,
+    recorded_at: new Date().toISOString(),
+  };
 
-    const locationData = {
-      latitude: location.coords.latitude,
-      longitude: location.coords.longitude,
-      accuracy: location.coords.accuracy,
-      battery_level: Math.round(batteryLevel * 100),
-      is_real_time: isRealTime,
-      recorded_at: new Date().toISOString(),
-    };
+  const netState = await NetInfo.fetch();
 
-    const netState = await NetInfo.fetch();
+  if (!netState.isConnected) {
+    await saveToQueue(locationData);
+    return;
+  }
 
-    if (!netState.isConnected) {
-      await saveToQueue(locationData);
-      return;
-    }
+  await flushQueue();
 
-    await flushQueue();
-
-    await fetch(`${API_URL}/api/location`, {
+  try {
+    const response = await fetch(`${API_URL}/api/location`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -83,76 +84,97 @@ async function sendLocationToServer(
       },
       body: JSON.stringify(locationData),
     });
+
+    if (!response.ok) {
+      await saveToQueue(locationData);
+    }
   } catch {
-    try {
-      const token = await storage.getToken();
-      if (!token) return;
-
-      let batteryLevel = 0;
-      try {
-        batteryLevel = await Battery.getBatteryLevelAsync();
-      } catch {}
-
-      await saveToQueue({
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude,
-        accuracy: location.coords.accuracy,
-        battery_level: Math.round(batteryLevel * 100),
-        is_real_time: isRealTime,
-        recorded_at: new Date().toISOString(),
-      });
-    } catch {}
+    await saveToQueue(locationData);
   }
 }
 
 export const locationService = {
+  // Foreground da chaqiriladi — dialog ko'rsatishi mumkin
   async requestPermissions(): Promise<boolean> {
     try {
       const { status: fgStatus } =
         await Location.requestForegroundPermissionsAsync();
       if (fgStatus !== "granted") return false;
 
-      // Background permission ham so'rash (GPS so'rov background da keladi)
       const { status: bgStatus } =
         await Location.requestBackgroundPermissionsAsync();
-      // Background rad qilinsa ham, foreground ruxsat bilan davom etamiz
+      // Background ruxsati berilmasa ham foreground ishlaydi
       return true;
     } catch {
       return false;
     }
   },
 
+  // Background da chaqiriladi — dialog ko'rsatmaydi, faqat tekshiradi
+  async hasPermissions(): Promise<boolean> {
+    try {
+      const fg = await Location.getForegroundPermissionsAsync();
+      if (fg.status !== "granted") return false;
+
+      const bg = await Location.getBackgroundPermissionsAsync();
+      return bg.status === "granted";
+    } catch {
+      return false;
+    }
+  },
+
+  // Foreground uchun — permission dialog + GPS
   async sendLocation(isRealTime = false): Promise<boolean> {
     try {
       const hasPermission = await this.requestPermissions();
       if (!hasPermission) return false;
 
-      // Timeout bilan joylashuvni olish (15 soniya)
+      return await this._getAndSendLocation(isRealTime);
+    } catch {
+      return false;
+    }
+  },
+
+  // Background uchun — GPS olish va yuborish
+  async sendLocationBackground(isRealTime = false): Promise<boolean> {
+    try {
+      const hasPermission = await this.hasPermissions();
+      if (!hasPermission) return false;
+
+      return await this._getAndSendLocation(isRealTime);
+    } catch {
+      return false;
+    }
+  },
+
+  // Foreground uchun GPS olish va yuborish
+  async _getAndSendLocation(isRealTime: boolean): Promise<boolean> {
+    let location: Location.LocationObject | null = null;
+
+    try {
+      location = await Location.getLastKnownPositionAsync();
+    } catch {}
+
+    try {
       const locationPromise = Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.High,
+        accuracy: Location.Accuracy.Balanced,
       });
 
       const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("Location timeout")), 15000),
+        setTimeout(() => reject(new Error("Location timeout")), 10000),
       );
 
-      const location = await Promise.race([locationPromise, timeoutPromise]);
+      const freshLocation = await Promise.race([
+        locationPromise,
+        timeoutPromise,
+      ]);
+      location = freshLocation;
+    } catch {}
 
-      await sendLocationToServer(location, isRealTime);
-      return true;
-    } catch (error) {
-      console.error("sendLocation error:", error);
-      // Agar High accuracy bilan bo'lmasa, Balanced bilan urinib ko'ramiz
-      try {
-        const fallbackLocation = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.Balanced,
-        });
-        await sendLocationToServer(fallbackLocation, isRealTime);
-        return true;
-      } catch {
-        return false;
-      }
-    }
+    if (!location) return false;
+
+    await sendLocationToServer(location, isRealTime);
+    return true;
   },
 
   async syncQueue(): Promise<void> {
